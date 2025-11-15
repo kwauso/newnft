@@ -47,23 +47,53 @@ async function uploadToIPFS(sessionId) {
 }
 
 export default async function handler(req, res) {
+  // デバッグ: リクエスト情報をログに出力
+  console.log('=== Upload Handler Called ===');
+  console.log('req.method:', req.method);
+  console.log('req.url:', req.url);
+  console.log('req.query:', req.query);
+  console.log('req object keys:', Object.keys(req));
+
   // CORS設定
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
+  // メソッドを取得（複数の方法を試す）
+  const method = req.method || req.httpMethod;
+  console.log('Detected method:', method, 'Type:', typeof method);
+
   // OPTIONS（プリフライト）
-  if (req.method === 'OPTIONS') {
+  if (method === 'OPTIONS' || method === 'options') {
     return res.status(200).end();
   }
 
   // POST 以外は全部 405
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: `Method ${req.method} not allowed` });
+  if (method !== 'POST' && method !== 'post') {
+    console.log('Method not allowed. Method:', method);
+    return res.status(405).json({ 
+      error: `Method ${method || 'undefined'} not allowed`,
+      debug: {
+        method: method,
+        reqMethod: req.method,
+        reqKeys: Object.keys(req)
+      }
+    });
   }
 
-  // セッションIDを取得
-  const { sessionId } = req.query;
+  // セッションIDを取得（Vercelの動的ルートから）
+  const sessionId = req.query?.sessionId || 
+                    (req.url && req.url.match(/\/sessions\/([^\/]+)/)?.[1]);
+  
+  console.log('SessionId from query:', req.query?.sessionId);
+  console.log('SessionId from URL:', req.url && req.url.match(/\/sessions\/([^\/]+)/)?.[1]);
+  console.log('Final sessionId:', sessionId);
+  
+  if (!sessionId) {
+    console.error('SessionId not found!');
+    return res.status(400).json({ error: 'Session ID is required', query: req.query, url: req.url });
+  }
+
   const session = global.sessions.get(sessionId);
 
   if (!session) {
