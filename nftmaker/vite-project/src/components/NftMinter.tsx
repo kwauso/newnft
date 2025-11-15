@@ -72,7 +72,7 @@ export default function NftMinter() {
     }
   };
 
-  // アップロード成功をリッスン（localStorageからIPFSハッシュを受け取る）
+  // アップロード成功をリッスンする（localStorageからIPFSハッシュを受け取る）
   useEffect(() => {
     if (!sessionId) return;
 
