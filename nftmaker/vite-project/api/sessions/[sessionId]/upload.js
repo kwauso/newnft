@@ -52,16 +52,32 @@ export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
+  // メソッドを取得（複数の方法を試す）
+  const method = req.method || req.httpMethod || req.requestMethod;
+  const methodUpper = method?.toUpperCase();
+  
+  console.log('Detected method:', method, '->', methodUpper);
+  console.log('Full req object keys:', Object.keys(req));
+
   // OPTIONSリクエスト（CORSプリフライト）の処理
-  if (req.method === 'OPTIONS' || req.method === 'options') {
+  if (methodUpper === 'OPTIONS') {
     return res.status(200).end();
   }
 
   // POSTメソッドのチェック（大文字小文字を考慮）
-  const method = req.method?.toUpperCase();
-  if (method !== 'POST') {
-    console.log('Method not allowed:', method);
-    return res.status(405).json({ error: `Method not allowed: ${method}. Expected POST.` });
+  // メソッドが取得できない場合は、リクエストボディの存在で判断
+  if (methodUpper !== 'POST' && !req.body && !req.readable) {
+    console.log('Method not allowed:', methodUpper, 'Body exists:', !!req.body, 'Readable:', !!req.readable);
+    return res.status(405).json({ 
+      error: `Method not allowed: ${methodUpper || 'undefined'}. Expected POST.`,
+      debug: {
+        method: method,
+        methodUpper: methodUpper,
+        hasBody: !!req.body,
+        isReadable: !!req.readable,
+        reqKeys: Object.keys(req)
+      }
+    });
   }
 
   // セッションIDを取得（Vercelではreq.queryから取得）
