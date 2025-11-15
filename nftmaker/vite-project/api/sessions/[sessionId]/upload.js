@@ -2,102 +2,48 @@ import lighthouse from '@lighthouse-web3/sdk';
 import formidable from 'formidable';
 import fs from 'fs';
 
-// セッション管理
-if (!global.sessions) {
-  global.sessions = new Map();
-}
-
-// Vercel Functions形式
-// export const config は不要（Next.js専用）
-
-// IPFSにアップロードする関数
-async function uploadToIPFS(sessionId) {
-  const session = global.sessions.get(sessionId);
-  if (!session || !session.imageData) {
-    throw new Error('Session or image data not found');
-  }
-
+// IPFSにアップロードする関数（サーバーサイドで処理）
+async function uploadToIPFS(fileData) {
   try {
-    session.status = 'processing';
-    session.error = null;
-
     // BufferをUint8Arrayに変換
-    const buffer = session.imageData.data;
-    const uint8Array = new Uint8Array(buffer);
+    const uint8Array = new Uint8Array(fileData);
 
-    const LIGHTHOUSE_API_KEY = '22edd714.6da4dc96320f4909b73d0225b1fca1fe';
+    const LIGHTHOUSE_API_KEY = process.env.LIGHTHOUSE_API_KEY || '22edd714.6da4dc96320f4909b73d0225b1fca1fe';
 
     // IPFSにアップロード
     const output = await lighthouse.uploadBuffer(uint8Array, LIGHTHOUSE_API_KEY);
     const hash = output.data.Hash;
 
-    // セッションにIPFSハッシュを保存
-    session.ipfsHash = hash;
-    session.status = 'completed';
-    session.timestamp = Date.now();
-
-    console.log(`IPFS upload successful for session ${sessionId}: ${hash}`);
+    console.log(`IPFS upload successful: ${hash}`);
     return hash;
   } catch (error) {
     console.error('IPFS upload failed:', error);
-    session.status = 'error';
-    session.error = error.message || 'IPFS upload failed';
     throw error;
   }
 }
 
 export default async function handler(req, res) {
-  // デバッグ: リクエスト情報をログに出力
-  console.log('=== Upload Handler Called ===');
-  console.log('req.method:', req.method);
-  console.log('req.url:', req.url);
-  console.log('req.query:', req.query);
-  console.log('req object keys:', Object.keys(req));
-
   // CORS設定
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
-  // メソッドを取得（複数の方法を試す）
-  const method = req.method || req.httpMethod;
-  console.log('Detected method:', method, 'Type:', typeof method);
-
   // OPTIONS（プリフライト）
-  if (method === 'OPTIONS' || method === 'options') {
+  if (req.method === 'OPTIONS') {
     return res.status(200).end();
   }
 
   // POST 以外は全部 405
-  if (method !== 'POST' && method !== 'post') {
-    console.log('Method not allowed. Method:', method);
-    return res.status(405).json({ 
-      error: `Method ${method || 'undefined'} not allowed`,
-      debug: {
-        method: method,
-        reqMethod: req.method,
-        reqKeys: Object.keys(req)
-      }
-    });
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: `Method ${req.method} not allowed` });
   }
 
   // セッションIDを取得（Vercelの動的ルートから）
   const sessionId = req.query?.sessionId || 
                     (req.url && req.url.match(/\/sessions\/([^\/]+)/)?.[1]);
   
-  console.log('SessionId from query:', req.query?.sessionId);
-  console.log('SessionId from URL:', req.url && req.url.match(/\/sessions\/([^\/]+)/)?.[1]);
-  console.log('Final sessionId:', sessionId);
-  
   if (!sessionId) {
-    console.error('SessionId not found!');
-    return res.status(400).json({ error: 'Session ID is required', query: req.query, url: req.url });
-  }
-
-  const session = global.sessions.get(sessionId);
-
-  if (!session) {
-    return res.status(404).json({ error: 'Session not found' });
+    return res.status(400).json({ error: 'Session ID is required' });
   }
 
   try {
@@ -139,27 +85,19 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'Invalid file data' });
     }
 
-    // 画像データを保存
-    session.imageData = {
-      name: file.originalFilename || 'image',
-      type: file.mimetype || 'image/jpeg',
-      size: file.size || fileData.length,
-      data: fileData,
-    };
-    session.status = 'uploaded';
-    session.timestamp = Date.now();
-
-    // バックグラウンドでIPFSにアップロード
-    uploadToIPFS(sessionId).catch((err) => {
-      console.error('IPFS upload error:', err);
-      session.status = 'error';
-      session.error = err.message;
-    });
+    // サーバーサイドでIPFSにアップロード（同期的に処理）
+    const ipfsHash = await uploadToIPFS(fileData);
 
     return res.status(200).json({
       success: true,
-      message: 'Image uploaded successfully',
+      message: 'Image uploaded and IPFS hash generated',
       sessionId,
+      ipfsHash,
+      imageData: {
+        name: file.originalFilename || 'image',
+        type: file.mimetype || 'image/jpeg',
+        size: file.size || fileData.length,
+      }
     });
   } catch (error) {
     console.error('Upload error:', error);

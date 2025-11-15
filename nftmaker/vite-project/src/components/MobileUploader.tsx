@@ -84,10 +84,34 @@ export default function MobileUploader() {
 
       xhr.addEventListener('load', () => {
         if (xhr.status === 200) {
-          setUploaded(true);
-          setUploadProgress(100);
+          try {
+            const response = JSON.parse(xhr.responseText);
+            setUploaded(true);
+            setUploadProgress(100);
+            // アップロード成功時にIPFSハッシュを親ウィンドウに送信
+            if (response.ipfsHash && window.parent) {
+              window.parent.postMessage({
+                type: 'UPLOAD_SUCCESS',
+                sessionId: response.sessionId,
+                ipfsHash: response.ipfsHash,
+                imageData: response.imageData
+              }, '*');
+            }
+          } catch (e) {
+            console.error('Failed to parse upload response:', e);
+            setError('アップロードレスポンスの解析に失敗しました。');
+          }
         } else {
-          setError('アップロードに失敗しました。');
+          let errorMessage = 'アップロードに失敗しました。';
+          try {
+            const response = JSON.parse(xhr.responseText);
+            errorMessage = response.error || errorMessage;
+            console.error('Upload error response:', response);
+          } catch (e) {
+            console.error('Upload error status:', xhr.status);
+            console.error('Upload error response:', xhr.responseText);
+          }
+          setError(errorMessage);
         }
         setUploading(false);
       });

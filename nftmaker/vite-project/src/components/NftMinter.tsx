@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { Box, Card, CardContent, Typography, Button, CardHeader, Link, LinearProgress, TextField, IconButton, Snackbar, Alert } from '@mui/material';
 import { QRCodeSVG } from 'qrcode.react';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
@@ -14,20 +14,6 @@ declare global {
 }
 
 type SessionStatus = 'waiting' | 'uploaded' | 'processing' | 'completed' | 'error';
-
-interface SessionData {
-  sessionId: string;
-  status: SessionStatus;
-  imageData: {
-    name: string;
-    type: string;
-    size: number;
-    data: string; // base64
-  } | null;
-  ipfsHash: string | null;
-  error: string | null;
-  timestamp: number;
-}
 
 export default function NftMinter() {
   const [currentAccount, setCurrentAccount] = useState('');
@@ -80,41 +66,21 @@ export default function NftMinter() {
     }
   };
 
-  // セッション状態をポーリング
-  const checkSessionStatus = useCallback(async () => {
-    if (!sessionId) return;
-
-    try {
-      const response = await fetch(`${API_BASE_URL}/sessions/${sessionId}`);
-      const data: SessionData = await response.json();
-
-      setSessionStatus(data.status);
-
-      // 画像プレビューを設定
-      if (data.imageData) {
-        const imageUrl = `data:${data.imageData.type};base64,${data.imageData.data}`;
-        setImagePreview(imageUrl);
-      }
-
-      // 進捗を更新
-      if (data.status === 'uploaded') {
-        setUploadProgress(100);
-        setNftProgress(0);
-        setError('IPFSにアップロード中...');
-      } else if (data.status === 'processing') {
-        setUploadProgress(100);
-        setNftProgress(50);
-        setError('IPFSにアップロード中...');
-      } else if (data.status === 'completed' && data.ipfsHash) {
+  // アップロード成功メッセージをリッスン（IPFSハッシュを受け取る）
+  useEffect(() => {
+    const handleMessage = async (event: MessageEvent) => {
+      if (event.data.type === 'UPLOAD_SUCCESS' && event.data.sessionId === sessionId) {
+        const { ipfsHash } = event.data;
+        
         setUploadProgress(100);
         setNftProgress(60);
         setError('NFTをミント中...');
         
-        // IPFSハッシュが取得できたらNFTをミント（重複を防ぐため）
-        if (!mintInfo && !isMinting) {
+        // IPFSハッシュが取得できたらNFTをミント（重複を防ぐ）
+        if (!mintInfo && !isMinting && ipfsHash) {
           setIsMinting(true);
           try {
-            await askContractToMintNft(data.ipfsHash);
+            await askContractToMintNft(ipfsHash);
             setNftProgress(100);
             setError('NFTのミントが完了しました！');
           } catch (error) {
@@ -124,23 +90,14 @@ export default function NftMinter() {
             setIsMinting(false);
           }
         }
-      } else if (data.status === 'error' && data.error) {
-        setError('エラーが発生しました: ' + data.error);
       }
-    } catch (err) {
-      console.error('Failed to check session status:', err);
-    }
+    };
+
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
   }, [sessionId, mintInfo, isMinting]);
 
-  // ポーリング開始
-  useEffect(() => {
-    if (!sessionId || sessionStatus === 'completed' || sessionStatus === 'error') {
-      return;
-    }
-
-    const interval = setInterval(checkSessionStatus, 2000); // 2秒ごとにチェック
-    return () => clearInterval(interval);
-  }, [sessionId, sessionStatus, checkSessionStatus]);
+  // ポーリングは不要（アップロード成功時にメッセージで通知される）
 
 
   // スマートコントラクトでNFTをミント
