@@ -386,7 +386,7 @@ export default function NftMinter() {
         <CardHeader
           title={
             <Typography variant="h5" align="center" sx={{ fontWeight: 500, color: 'text.primary' }}>
-              QRコードでNFTを作成
+              作ってみようNFT
             </Typography>
           }
         />
