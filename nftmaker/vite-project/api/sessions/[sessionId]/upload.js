@@ -5,13 +5,6 @@ if (!global.sessions) {
   global.sessions = new Map();
 }
 
-// Vercelのサーバーレス関数ではbodyParserを無効化
-export const config = {
-  api: {
-    bodyParser: false,
-  },
-};
-
 // IPFSにアップロードする関数
 async function uploadToIPFS(sessionId) {
   const session = global.sessions.get(sessionId);
@@ -49,20 +42,30 @@ async function uploadToIPFS(sessionId) {
 }
 
 export default async function handler(req, res) {
+  // デバッグ: リクエスト情報をログに出力
+  console.log('Request method:', req.method);
+  console.log('Request URL:', req.url);
+  console.log('Request headers:', req.headers);
+
   // CORS設定
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
-  if (req.method === 'OPTIONS') {
+  // OPTIONSリクエスト（CORSプリフライト）の処理
+  if (req.method === 'OPTIONS' || req.method === 'options') {
     return res.status(200).end();
   }
 
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
+  // POSTメソッドのチェック（大文字小文字を考慮）
+  const method = req.method?.toUpperCase();
+  if (method !== 'POST') {
+    console.log('Method not allowed:', method);
+    return res.status(405).json({ error: `Method not allowed: ${method}. Expected POST.` });
   }
 
-  const { sessionId } = req.query;
+  // セッションIDを取得（Vercelではreq.queryから取得）
+  const sessionId = req.query?.sessionId || req.query?.['sessionId'];
   const session = global.sessions.get(sessionId);
 
   if (!session) {
@@ -71,11 +74,20 @@ export default async function handler(req, res) {
 
   try {
     // リクエストボディをバッファとして読み込む
-    const chunks = [];
-    for await (const chunk of req) {
-      chunks.push(chunk);
+    // Vercelのサーバーレス関数では、reqはReadableStreamまたはBuffer
+    let buffer;
+    if (Buffer.isBuffer(req.body)) {
+      buffer = req.body;
+    } else if (req.body) {
+      buffer = Buffer.from(req.body);
+    } else {
+      // ストリームから読み込む
+      const chunks = [];
+      for await (const chunk of req) {
+        chunks.push(chunk);
+      }
+      buffer = Buffer.concat(chunks);
     }
-    const buffer = Buffer.concat(chunks);
 
     // multipart/form-dataをパース（簡易版）
     // 実際のプロダクションでは、busboyやformidableなどのライブラリを使用
