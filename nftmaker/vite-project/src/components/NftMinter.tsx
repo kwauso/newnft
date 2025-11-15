@@ -66,35 +66,71 @@ export default function NftMinter() {
     }
   };
 
-  // アップロード成功メッセージをリッスン（IPFSハッシュを受け取る）
+  // アップロード成功をリッスン（localStorageからIPFSハッシュを受け取る）
   useEffect(() => {
-    const handleMessage = async (event: MessageEvent) => {
-      if (event.data.type === 'UPLOAD_SUCCESS' && event.data.sessionId === sessionId) {
-        const { ipfsHash } = event.data;
-        
-        setUploadProgress(100);
-        setNftProgress(60);
-        setError('NFTをミント中...');
-        
-        // IPFSハッシュが取得できたらNFTをミント（重複を防ぐ）
-        if (!mintInfo && !isMinting && ipfsHash) {
-          setIsMinting(true);
-          try {
-            await askContractToMintNft(ipfsHash);
-            setNftProgress(100);
-            setError('NFTのミントが完了しました！');
-          } catch (error) {
-            console.error('Mint error:', error);
-            setError('NFTのミントに失敗しました: ' + (error as Error).message);
-          } finally {
-            setIsMinting(false);
+    if (!sessionId) return;
+
+    const checkUploadStatus = async () => {
+      const uploadDataStr = localStorage.getItem(`upload_${sessionId}`);
+      if (uploadDataStr) {
+        try {
+          const uploadData = JSON.parse(uploadDataStr);
+          if (uploadData.type === 'UPLOAD_SUCCESS' && uploadData.sessionId === sessionId) {
+            const { ipfsHash } = uploadData;
+            
+            setUploadProgress(100);
+            setNftProgress(60);
+            setError('NFTをミント中...');
+            
+            // IPFSハッシュが取得できたらNFTをミント（重複を防ぐ）
+            if (!mintInfo && !isMinting && ipfsHash) {
+              setIsMinting(true);
+              try {
+                await askContractToMintNft(ipfsHash);
+                setNftProgress(100);
+                setError('NFTのミントが完了しました！');
+                // 使用済みのデータを削除
+                localStorage.removeItem(`upload_${sessionId}`);
+              } catch (error) {
+                console.error('Mint error:', error);
+                setError('NFTのミントに失敗しました: ' + (error as Error).message);
+              } finally {
+                setIsMinting(false);
+              }
+            }
           }
+        } catch (e) {
+          console.error('Failed to parse upload data:', e);
         }
       }
     };
 
-    window.addEventListener('message', handleMessage);
-    return () => window.removeEventListener('message', handleMessage);
+    // 初回チェック
+    checkUploadStatus();
+
+    // storageイベントをリッスン（別タブ/ウィンドウからの変更も検知）
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === `upload_${sessionId}` && e.newValue) {
+        checkUploadStatus();
+      }
+    };
+
+    // カスタムイベントをリッスン（同じウィンドウ内の変更も検知）
+    const handleCustomStorage = () => {
+      checkUploadStatus();
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    window.addEventListener('upload-success', handleCustomStorage);
+
+    // 定期的にチェック（フォールバック）
+    const interval = setInterval(checkUploadStatus, 1000);
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('upload-success', handleCustomStorage);
+      clearInterval(interval);
+    };
   }, [sessionId, mintInfo, isMinting]);
 
   // ポーリングは不要（アップロード成功時にメッセージで通知される）

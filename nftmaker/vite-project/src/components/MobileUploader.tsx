@@ -88,14 +88,18 @@ export default function MobileUploader() {
             const response = JSON.parse(xhr.responseText);
             setUploaded(true);
             setUploadProgress(100);
-            // アップロード成功時にIPFSハッシュを親ウィンドウに送信
-            if (response.ipfsHash && window.parent) {
-              window.parent.postMessage({
+            // アップロード成功時にIPFSハッシュをlocalStorageに保存
+            if (response.ipfsHash) {
+              const uploadData = {
                 type: 'UPLOAD_SUCCESS',
                 sessionId: response.sessionId,
                 ipfsHash: response.ipfsHash,
-                imageData: response.imageData
-              }, '*');
+                imageData: response.imageData,
+                timestamp: Date.now()
+              };
+              localStorage.setItem(`upload_${response.sessionId}`, JSON.stringify(uploadData));
+              // カスタムイベントを発火（同じウィンドウ内でも動作するように）
+              window.dispatchEvent(new CustomEvent('upload-success', { detail: uploadData }));
             }
           } catch (e) {
             console.error('Failed to parse upload response:', e);
