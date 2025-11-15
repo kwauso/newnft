@@ -628,7 +628,7 @@ export default function NftMinter() {
                         <Box sx={{ p: 2, bgcolor: 'white', borderRadius: 2, border: '1px solid', borderColor: 'grey.300' }}>
                           <QRCodeSVG 
                             value={`https://sepolia.etherscan.io/tx/${mintInfo.transactionHash}`} 
-                            size={200} 
+                            size={240} 
                           />
                         </Box>
                       </Box>
