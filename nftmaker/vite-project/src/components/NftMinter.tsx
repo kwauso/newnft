@@ -31,6 +31,7 @@ export default function NftMinter() {
   const [ipfsHash, setIpfsHash] = useState<string | null>(null);
   const [scanning, setScanning] = useState(false);
   const qrCodeReaderRef = useRef<Html5Qrcode | null>(null);
+  const qrReaderElementRef = useRef<HTMLDivElement | null>(null);
 
   // ウォレット接続
   const connectWallet = async () => {
@@ -135,44 +136,71 @@ export default function NftMinter() {
         qrCodeReaderRef.current.stop().catch(() => {});
         qrCodeReaderRef.current = null;
       }
+      // DOMをクリーンアップ
+      if (qrReaderElementRef.current) {
+        qrReaderElementRef.current.innerHTML = '';
+      }
       return;
     }
 
     let isMounted = true;
+    let html5QrCodeInstance: Html5Qrcode | null = null;
 
     const startCamera = async () => {
       // ダイアログが開いてDOMがマウントされるまで少し待つ
-      await new Promise(resolve => setTimeout(resolve, 300));
+      await new Promise(resolve => setTimeout(resolve, 500));
 
       if (!isMounted) return;
 
-      const elementId = 'qr-reader';
-      const element = document.getElementById(elementId);
+      const element = qrReaderElementRef.current;
       if (!element) {
         console.error('QR reader element not found');
         if (isMounted) {
           setScanning(false);
+          setError('QRリーダー要素が見つかりませんでした。');
         }
         return;
       }
 
-      try {
-        const html5QrCode = new Html5Qrcode(elementId);
-        qrCodeReaderRef.current = html5QrCode;
+      // 既存のインスタンスがあればクリーンアップ
+      if (qrCodeReaderRef.current) {
+        try {
+          await qrCodeReaderRef.current.stop();
+        } catch (e) {
+          // 無視
+        }
+        qrCodeReaderRef.current = null;
+      }
 
-        await html5QrCode.start(
+      // 要素をクリーンアップ
+      element.innerHTML = '';
+
+      try {
+        // 一意のIDを生成
+        const elementId = `qr-reader-${Date.now()}`;
+        element.id = elementId;
+
+        html5QrCodeInstance = new Html5Qrcode(elementId);
+        qrCodeReaderRef.current = html5QrCodeInstance;
+
+        await html5QrCodeInstance.start(
           { facingMode: 'environment' },
           {
             fps: 10,
             qrbox: { width: 250, height: 250 },
+            aspectRatio: 1.0,
           },
           async (decodedText) => {
             // QRコードを検出
-            if (!isMounted) return;
+            if (!isMounted || !html5QrCodeInstance) return;
+            
+            console.log('QR Code detected:', decodedText);
             
             // 先にカメラを停止
             try {
-              await html5QrCode.stop();
+              await html5QrCodeInstance.stop();
+              html5QrCodeInstance = null;
+              qrCodeReaderRef.current = null;
             } catch (stopErr) {
               console.error('Stop camera error:', stopErr);
             }
@@ -181,10 +209,10 @@ export default function NftMinter() {
             if (isMounted) {
               setIpfsHash(decodedText);
               setScanning(false);
-              setError('IPFSハッシュを取得しました。ミントボタンを押してください。');
+              setError(null);
             }
           },
-          () => {
+          (_errorMessage) => {
             // エラーは無視（継続的にスキャンするため）
           }
         );
@@ -194,6 +222,8 @@ export default function NftMinter() {
           setError('QRコードスキャンの開始に失敗しました: ' + (err as Error).message);
           setScanning(false);
         }
+        html5QrCodeInstance = null;
+        qrCodeReaderRef.current = null;
       }
     };
 
@@ -201,9 +231,16 @@ export default function NftMinter() {
 
     return () => {
       isMounted = false;
+      if (html5QrCodeInstance) {
+        html5QrCodeInstance.stop().catch(() => {});
+        html5QrCodeInstance = null;
+      }
       if (qrCodeReaderRef.current) {
         qrCodeReaderRef.current.stop().catch(() => {});
         qrCodeReaderRef.current = null;
+      }
+      if (qrReaderElementRef.current) {
+        qrReaderElementRef.current.innerHTML = '';
       }
     };
   }, [scanning]);
@@ -213,15 +250,13 @@ export default function NftMinter() {
     if (qrCodeReaderRef.current) {
       try {
         await qrCodeReaderRef.current.stop();
-        // DOMをクリーンアップ
-        const element = document.getElementById('qr-reader');
-        if (element) {
-          element.innerHTML = '';
-        }
       } catch (err) {
         console.error('Stop scan error:', err);
       }
       qrCodeReaderRef.current = null;
+    }
+    if (qrReaderElementRef.current) {
+      qrReaderElementRef.current.innerHTML = '';
     }
     setScanning(false);
   };
@@ -478,7 +513,17 @@ export default function NftMinter() {
                   <Dialog open={scanning} onClose={stopQRScan} maxWidth="sm" fullWidth>
                     <DialogTitle>QRコードをスキャン</DialogTitle>
                     <DialogContent>
-                      <Box sx={{ width: '100%', minHeight: '300px' }} id="qr-reader" />
+                      <Box 
+                        ref={qrReaderElementRef}
+                        sx={{ 
+                          width: '100%', 
+                          minHeight: '300px',
+                          display: 'flex',
+                          justifyContent: 'center',
+                          alignItems: 'center',
+                          bgcolor: 'black'
+                        }} 
+                      />
                       <Typography variant="body2" color="text.secondary" sx={{ mt: 2, textAlign: 'center' }}>
                         モバイル側で表示されたQRコードをカメラに向けてください
                       </Typography>
