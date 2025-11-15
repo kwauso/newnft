@@ -31,7 +31,6 @@ export default function NftMinter() {
   const [ipfsHash, setIpfsHash] = useState<string | null>(null);
   const [scanning, setScanning] = useState(false);
   const qrCodeReaderRef = useRef<Html5Qrcode | null>(null);
-  const scannerContainerRef = useRef<HTMLDivElement | null>(null);
 
   // ウォレット接続
   const connectWallet = async () => {
@@ -124,37 +123,63 @@ export default function NftMinter() {
   }, [sessionId]);
 
   // QRコードスキャンの開始
-  const startQRScan = async () => {
-    if (!scannerContainerRef.current) return;
-
-    try {
-      const html5QrCode = new Html5Qrcode('qr-reader');
-      qrCodeReaderRef.current = html5QrCode;
-
-      await html5QrCode.start(
-        { facingMode: 'environment' },
-        {
-          fps: 10,
-          qrbox: { width: 250, height: 250 },
-        },
-        (decodedText) => {
-          // QRコードを検出
-          setIpfsHash(decodedText);
-          setScanning(false);
-          html5QrCode.stop().catch(() => {});
-          setError('IPFSハッシュを取得しました。ミントボタンを押してください。');
-        },
-        () => {
-          // エラーは無視（継続的にスキャンするため）
-        }
-      );
-      setScanning(true);
-    } catch (err) {
-      console.error('QR scan error:', err);
-      setError('QRコードスキャンの開始に失敗しました: ' + (err as Error).message);
-      setScanning(false);
-    }
+  const startQRScan = () => {
+    setScanning(true);
   };
+
+  // ダイアログが開いた後にカメラを起動
+  useEffect(() => {
+    if (!scanning) return;
+
+    const startCamera = async () => {
+      // ダイアログが開いてDOMがマウントされるまで少し待つ
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      const elementId = 'qr-reader';
+      const element = document.getElementById(elementId);
+      if (!element) {
+        console.error('QR reader element not found');
+        setScanning(false);
+        return;
+      }
+
+      try {
+        const html5QrCode = new Html5Qrcode(elementId);
+        qrCodeReaderRef.current = html5QrCode;
+
+        await html5QrCode.start(
+          { facingMode: 'environment' },
+          {
+            fps: 10,
+            qrbox: { width: 250, height: 250 },
+          },
+          (decodedText) => {
+            // QRコードを検出
+            setIpfsHash(decodedText);
+            setScanning(false);
+            html5QrCode.stop().catch(() => {});
+            setError('IPFSハッシュを取得しました。ミントボタンを押してください。');
+          },
+          () => {
+            // エラーは無視（継続的にスキャンするため）
+          }
+        );
+      } catch (err) {
+        console.error('QR scan error:', err);
+        setError('QRコードスキャンの開始に失敗しました: ' + (err as Error).message);
+        setScanning(false);
+      }
+    };
+
+    startCamera();
+
+    return () => {
+      if (qrCodeReaderRef.current) {
+        qrCodeReaderRef.current.stop().catch(() => {});
+        qrCodeReaderRef.current = null;
+      }
+    };
+  }, [scanning]);
 
   // QRコードスキャンの停止
   const stopQRScan = async () => {
@@ -169,14 +194,6 @@ export default function NftMinter() {
     setScanning(false);
   };
 
-  // クリーンアップ
-  useEffect(() => {
-    return () => {
-      if (qrCodeReaderRef.current) {
-        qrCodeReaderRef.current.stop().catch(() => {});
-      }
-    };
-  }, []);
 
   // ミントボタンのハンドラー
   const handleMint = async () => {
@@ -429,7 +446,7 @@ export default function NftMinter() {
                   <Dialog open={scanning} onClose={stopQRScan} maxWidth="sm" fullWidth>
                     <DialogTitle>QRコードをスキャン</DialogTitle>
                     <DialogContent>
-                      <Box sx={{ width: '100%', minHeight: '300px' }} id="qr-reader" ref={scannerContainerRef} />
+                      <Box sx={{ width: '100%', minHeight: '300px' }} id="qr-reader" />
                       <Typography variant="body2" color="text.secondary" sx={{ mt: 2, textAlign: 'center' }}>
                         モバイル側で表示されたQRコードをカメラに向けてください
                       </Typography>
