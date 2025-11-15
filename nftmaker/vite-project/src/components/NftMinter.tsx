@@ -88,7 +88,7 @@ export default function NftMinter() {
               try {
                 await askContractToMintNft(ipfsHash);
                 setNftProgress(100);
-                setError('NFTのミントが完了しました！');
+                setError('NFTのミントが完了しました');
                 // 使用済みのデータを削除
                 localStorage.removeItem(`upload_${sessionId}`);
               } catch (error) {
