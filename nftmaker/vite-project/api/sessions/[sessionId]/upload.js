@@ -74,18 +74,24 @@ export default async function handler(req, res) {
     return res.status(404).json({ error: 'Session not found' });
   }
 
-  // formidableでファイルをパース
-  const form = formidable({
-    multiples: false,
-    maxFileSize: 10 * 1024 * 1024, // 10MB制限
-    keepExtensions: true,
-  });
+  try {
+    // formidableでファイルをパース（Promiseでラップ）
+    const form = formidable({
+      multiples: false,
+      maxFileSize: 10 * 1024 * 1024, // 10MB制限
+      keepExtensions: true,
+    });
 
-  form.parse(req, async (err, fields, files) => {
-    if (err) {
-      console.error('Formidable parse error:', err);
-      return res.status(500).json({ error: err.message });
-    }
+    // form.parseをPromiseでラップ
+    const { fields, files } = await new Promise((resolve, reject) => {
+      form.parse(req, (err, fields, files) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve({ fields, files });
+        }
+      });
+    });
 
     const file = Array.isArray(files.image) ? files.image[0] : files.image;
 
@@ -93,47 +99,45 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'No file uploaded' });
     }
 
-    try {
-      // ファイルを読み込む（formidableは一時ファイルパスを返す）
-      let fileData;
-      if (file.filepath) {
-        // 一時ファイルから読み込む
-        fileData = fs.readFileSync(file.filepath);
-        // 一時ファイルを削除
-        fs.unlinkSync(file.filepath);
-      } else if (Buffer.isBuffer(file)) {
-        // 既にBufferの場合
-        fileData = file;
-      } else {
-        return res.status(400).json({ error: 'Invalid file data' });
-      }
-
-      // 画像データを保存
-      session.imageData = {
-        name: file.originalFilename || 'image',
-        type: file.mimetype || 'image/jpeg',
-        size: file.size || fileData.length,
-        data: fileData,
-      };
-      session.status = 'uploaded';
-      session.timestamp = Date.now();
-
-      // バックグラウンドでIPFSにアップロード
-      uploadToIPFS(sessionId).catch((err) => {
-        console.error('IPFS upload error:', err);
-        session.status = 'error';
-        session.error = err.message;
-      });
-
-      return res.status(200).json({
-        success: true,
-        message: 'Image uploaded successfully',
-        sessionId,
-      });
-    } catch (error) {
-      console.error('Upload error:', error);
-      return res.status(500).json({ error: error.message || 'Upload failed' });
+    // ファイルを読み込む（formidableは一時ファイルパスを返す）
+    let fileData;
+    if (file.filepath) {
+      // 一時ファイルから読み込む
+      fileData = fs.readFileSync(file.filepath);
+      // 一時ファイルを削除
+      fs.unlinkSync(file.filepath);
+    } else if (Buffer.isBuffer(file)) {
+      // 既にBufferの場合
+      fileData = file;
+    } else {
+      return res.status(400).json({ error: 'Invalid file data' });
     }
-  });
+
+    // 画像データを保存
+    session.imageData = {
+      name: file.originalFilename || 'image',
+      type: file.mimetype || 'image/jpeg',
+      size: file.size || fileData.length,
+      data: fileData,
+    };
+    session.status = 'uploaded';
+    session.timestamp = Date.now();
+
+    // バックグラウンドでIPFSにアップロード
+    uploadToIPFS(sessionId).catch((err) => {
+      console.error('IPFS upload error:', err);
+      session.status = 'error';
+      session.error = err.message;
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: 'Image uploaded successfully',
+      sessionId,
+    });
+  } catch (error) {
+    console.error('Upload error:', error);
+    return res.status(500).json({ error: error.message || 'Upload failed' });
+  }
 }
 
