@@ -66,19 +66,15 @@ export default async function handler(req, res) {
 
   // POSTメソッドのチェック（大文字小文字を考慮）
   // メソッドが取得できない場合は、リクエストボディの存在で判断
-  if (methodUpper !== 'POST' && !req.body && !req.readable) {
-    console.log('Method not allowed:', methodUpper, 'Body exists:', !!req.body, 'Readable:', !!req.readable);
-    return res.status(405).json({ 
-      error: `Method not allowed: ${methodUpper || 'undefined'}. Expected POST.`,
-      debug: {
-        method: method,
-        methodUpper: methodUpper,
-        hasBody: !!req.body,
-        isReadable: !!req.readable,
-        reqKeys: Object.keys(req)
-      }
-    });
-  }
+ // OPTIONS（プリフライト）
+if (req.method === 'OPTIONS') {
+  return res.status(200).end();
+}
+
+// POST 以外は全部 405
+if (req.method !== 'POST') {
+  return res.status(405).json({ error: `Method ${req.method} not allowed` });
+}
 
   // セッションIDを取得（Vercelではreq.queryから取得）
   const sessionId = req.query?.sessionId || req.query?.['sessionId'];
