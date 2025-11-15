@@ -129,17 +129,30 @@ export default function NftMinter() {
 
   // ダイアログが開いた後にカメラを起動
   useEffect(() => {
-    if (!scanning) return;
+    if (!scanning) {
+      // スキャン停止時にクリーンアップ
+      if (qrCodeReaderRef.current) {
+        qrCodeReaderRef.current.stop().catch(() => {});
+        qrCodeReaderRef.current = null;
+      }
+      return;
+    }
+
+    let isMounted = true;
 
     const startCamera = async () => {
       // ダイアログが開いてDOMがマウントされるまで少し待つ
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await new Promise(resolve => setTimeout(resolve, 300));
+
+      if (!isMounted) return;
 
       const elementId = 'qr-reader';
       const element = document.getElementById(elementId);
       if (!element) {
         console.error('QR reader element not found');
-        setScanning(false);
+        if (isMounted) {
+          setScanning(false);
+        }
         return;
       }
 
@@ -153,12 +166,23 @@ export default function NftMinter() {
             fps: 10,
             qrbox: { width: 250, height: 250 },
           },
-          (decodedText) => {
+          async (decodedText) => {
             // QRコードを検出
-            setIpfsHash(decodedText);
-            setScanning(false);
-            html5QrCode.stop().catch(() => {});
-            setError('IPFSハッシュを取得しました。ミントボタンを押してください。');
+            if (!isMounted) return;
+            
+            // 先にカメラを停止
+            try {
+              await html5QrCode.stop();
+            } catch (stopErr) {
+              console.error('Stop camera error:', stopErr);
+            }
+            
+            // その後、状態を更新
+            if (isMounted) {
+              setIpfsHash(decodedText);
+              setScanning(false);
+              setError('IPFSハッシュを取得しました。ミントボタンを押してください。');
+            }
           },
           () => {
             // エラーは無視（継続的にスキャンするため）
@@ -166,14 +190,17 @@ export default function NftMinter() {
         );
       } catch (err) {
         console.error('QR scan error:', err);
-        setError('QRコードスキャンの開始に失敗しました: ' + (err as Error).message);
-        setScanning(false);
+        if (isMounted) {
+          setError('QRコードスキャンの開始に失敗しました: ' + (err as Error).message);
+          setScanning(false);
+        }
       }
     };
 
     startCamera();
 
     return () => {
+      isMounted = false;
       if (qrCodeReaderRef.current) {
         qrCodeReaderRef.current.stop().catch(() => {});
         qrCodeReaderRef.current = null;
@@ -186,6 +213,11 @@ export default function NftMinter() {
     if (qrCodeReaderRef.current) {
       try {
         await qrCodeReaderRef.current.stop();
+        // DOMをクリーンアップ
+        const element = document.getElementById('qr-reader');
+        if (element) {
+          element.innerHTML = '';
+        }
       } catch (err) {
         console.error('Stop scan error:', err);
       }
