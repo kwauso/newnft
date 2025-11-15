@@ -26,6 +26,7 @@ export default function NftMinter() {
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [copySuccess, setCopySuccess] = useState(false);
   const [isMinting, setIsMinting] = useState(false);
+  const [ipfsHash, setIpfsHash] = useState<string | null>(null);
 
   // ウォレット接続
   const connectWallet = async () => {
@@ -70,33 +71,17 @@ export default function NftMinter() {
   useEffect(() => {
     if (!sessionId) return;
 
-    const checkUploadStatus = async () => {
+    const checkUploadStatus = () => {
       const uploadDataStr = localStorage.getItem(`upload_${sessionId}`);
       if (uploadDataStr) {
         try {
           const uploadData = JSON.parse(uploadDataStr);
           if (uploadData.type === 'UPLOAD_SUCCESS' && uploadData.sessionId === sessionId) {
-            const { ipfsHash } = uploadData;
-            
-            setUploadProgress(100);
-            setNftProgress(60);
-            setError('NFTをミント中...');
-            
-            // IPFSハッシュが取得できたらNFTをミント（重複を防ぐ）
-            if (!mintInfo && !isMinting && ipfsHash) {
-              setIsMinting(true);
-              try {
-                await askContractToMintNft(ipfsHash);
-                setNftProgress(100);
-                setError('NFTのミントが完了しました');
-                // 使用済みのデータを削除
-                localStorage.removeItem(`upload_${sessionId}`);
-              } catch (error) {
-                console.error('Mint error:', error);
-                setError('NFTのミントに失敗しました: ' + (error as Error).message);
-              } finally {
-                setIsMinting(false);
-              }
+            const { ipfsHash: hash } = uploadData;
+            if (hash) {
+              setIpfsHash(hash);
+              setUploadProgress(100);
+              setError('画像がアップロードされました。ミントボタンを押してください。');
             }
           }
         } catch (e) {
@@ -131,7 +116,39 @@ export default function NftMinter() {
       window.removeEventListener('upload-success', handleCustomStorage);
       clearInterval(interval);
     };
-  }, [sessionId, mintInfo, isMinting]);
+  }, [sessionId]);
+
+  // ミントボタンのハンドラー
+  const handleMint = async () => {
+    if (!ipfsHash) {
+      setError('IPFSハッシュが見つかりません。画像をアップロードしてください。');
+      return;
+    }
+
+    if (isMinting) {
+      return;
+    }
+
+    setIsMinting(true);
+    setNftProgress(60);
+    setError('NFTをミント中...');
+
+    try {
+      await askContractToMintNft(ipfsHash);
+      setNftProgress(100);
+      setError('NFTのミントが完了しました！');
+      // 使用済みのデータを削除
+      if (sessionId) {
+        localStorage.removeItem(`upload_${sessionId}`);
+      }
+      setIpfsHash(null);
+    } catch (error) {
+      console.error('Mint error:', error);
+      setError('NFTのミントに失敗しました: ' + (error as Error).message);
+    } finally {
+      setIsMinting(false);
+    }
+  };
 
   // ポーリングは不要（アップロード成功時にメッセージで通知される）
 
@@ -325,16 +342,36 @@ export default function NftMinter() {
                   )}
 
                   {/* 進捗バー */}
-                  {(sessionStatus === 'uploaded' || sessionStatus === 'processing') && (
+                  {uploadProgress > 0 && (
                     <Box sx={{ mb: 2 }}>
                       <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
                         アップロード進捗: {uploadProgress}%
                       </Typography>
-                      <LinearProgress variant="determinate" value={uploadProgress} sx={{ mb: 2 }} />
-                      <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                        NFTミント進捗: {nftProgress}%
-                      </Typography>
-                      <LinearProgress variant="determinate" value={nftProgress} />
+                      <LinearProgress variant="determinate" value={uploadProgress} />
+                    </Box>
+                  )}
+
+                  {/* ミントボタン */}
+                  {ipfsHash && (
+                    <Box sx={{ mb: 2, textAlign: 'center' }}>
+                      <Button
+                        variant="contained"
+                        color="primary"
+                        onClick={handleMint}
+                        disabled={isMinting || !!mintInfo}
+                        sx={{ mb: 2 }}
+                        fullWidth
+                      >
+                        {isMinting ? 'ミント中...' : mintInfo ? 'ミント完了' : 'NFTをミント'}
+                      </Button>
+                      {nftProgress > 0 && (
+                        <Box sx={{ mt: 2 }}>
+                          <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                            NFTミント進捗: {nftProgress}%
+                          </Typography>
+                          <LinearProgress variant="determinate" value={nftProgress} />
+                        </Box>
+                      )}
                     </Box>
                   )}
 
