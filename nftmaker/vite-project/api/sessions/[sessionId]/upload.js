@@ -7,12 +7,8 @@ if (!global.sessions) {
   global.sessions = new Map();
 }
 
-// Vercelのサーバーレス関数ではbodyParserを無効化
-export const config = {
-  api: {
-    bodyParser: false, // 自前で解析
-  },
-};
+// Vercel Functions形式
+// export const config は不要（Next.js専用）
 
 // IPFSにアップロードする関数
 async function uploadToIPFS(sessionId) {
@@ -62,9 +58,9 @@ export default async function handler(req, res) {
   }
 
   // POST 以外は全部 405
-  //if (req.method !== 'POST') {
-  //  return res.status(405).json({ error: `Method ${req.method} not allowed` });
-  //}
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: `Method ${req.method} not allowed` });
+  }
 
   // セッションIDを取得
   const { sessionId } = req.query;
