@@ -110,7 +110,7 @@ export default function NftMinter() {
         setNftProgress(60);
         setError('NFTをミント中...');
         
-        // IPFSハッシュが取得できたらNFTをミント（重複を防ぐ）
+        // IPFSハッシュが取得できたらNFTをミント（重複を防ぐため）
         if (!mintInfo && !isMinting) {
           setIsMinting(true);
           try {
