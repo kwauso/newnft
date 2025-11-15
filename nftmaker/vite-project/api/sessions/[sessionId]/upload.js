@@ -1,9 +1,18 @@
 import lighthouse from '@lighthouse-web3/sdk';
+import formidable from 'formidable';
+import fs from 'fs';
 
 // セッション管理
 if (!global.sessions) {
   global.sessions = new Map();
 }
+
+// Vercelのサーバーレス関数ではbodyParserを無効化
+export const config = {
+  api: {
+    bodyParser: false, // 自前で解析
+  },
+};
 
 // IPFSにアップロードする関数
 async function uploadToIPFS(sessionId) {
@@ -42,139 +51,89 @@ async function uploadToIPFS(sessionId) {
 }
 
 export default async function handler(req, res) {
-  // デバッグ: リクエスト情報をログに出力
-  console.log('Request method:', req.method);
-  console.log('Request URL:', req.url);
-  console.log('Request headers:', req.headers);
-
   // CORS設定
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
-  // メソッドを取得（複数の方法を試す）
-  const method = req.method || req.httpMethod || req.requestMethod;
-  const methodUpper = method?.toUpperCase();
-  
-  console.log('Detected method:', method, '->', methodUpper);
-  console.log('Full req object keys:', Object.keys(req));
-
-  // OPTIONSリクエスト（CORSプリフライト）の処理
-  if (methodUpper === 'OPTIONS') {
+  // OPTIONS（プリフライト）
+  if (req.method === 'OPTIONS') {
     return res.status(200).end();
   }
 
-  // POSTメソッドのチェック（大文字小文字を考慮）
-  // メソッドが取得できない場合は、リクエストボディの存在で判断
- // OPTIONS（プリフライト）
-if (req.method === 'OPTIONS') {
-  return res.status(200).end();
-}
+  // POST 以外は全部 405
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: `Method ${req.method} not allowed` });
+  }
 
-// POST 以外は全部 405
-if (req.method !== 'POST') {
-  return res.status(405).json({ error: `Method ${req.method} not allowed` });
-}
-
-  // セッションIDを取得（Vercelではreq.queryから取得）
-  const sessionId = req.query?.sessionId || req.query?.['sessionId'];
+  // セッションIDを取得
+  const { sessionId } = req.query;
   const session = global.sessions.get(sessionId);
 
   if (!session) {
     return res.status(404).json({ error: 'Session not found' });
   }
 
-  try {
-    // リクエストボディをバッファとして読み込む
-    // Vercelのサーバーレス関数では、reqはReadableStreamまたはBuffer
-    let buffer;
-    if (Buffer.isBuffer(req.body)) {
-      buffer = req.body;
-    } else if (req.body) {
-      buffer = Buffer.from(req.body);
-    } else {
-      // ストリームから読み込む
-      const chunks = [];
-      for await (const chunk of req) {
-        chunks.push(chunk);
-      }
-      buffer = Buffer.concat(chunks);
+  // formidableでファイルをパース
+  const form = formidable({
+    multiples: false,
+    maxFileSize: 10 * 1024 * 1024, // 10MB制限
+    keepExtensions: true,
+  });
+
+  form.parse(req, async (err, fields, files) => {
+    if (err) {
+      console.error('Formidable parse error:', err);
+      return res.status(500).json({ error: err.message });
     }
 
-    // multipart/form-dataをパース（簡易版）
-    // 実際のプロダクションでは、busboyやformidableなどのライブラリを使用
-    const boundary = req.headers['content-type']?.split('boundary=')[1];
-    if (!boundary) {
-      return res.status(400).json({ error: 'Invalid content type' });
-    }
+    const file = Array.isArray(files.image) ? files.image[0] : files.image;
 
-    // 簡易的なmultipartパーサー
-    const parts = buffer.toString('binary').split(`--${boundary}`);
-    let fileData = null;
-    let fileName = 'image';
-    let fileType = 'image/jpeg';
-
-    for (const part of parts) {
-      if (part.includes('Content-Disposition: form-data')) {
-        const headerEnd = part.indexOf('\r\n\r\n');
-        const headers = part.substring(0, headerEnd);
-        const body = part.substring(headerEnd + 4);
-        
-        if (headers.includes('name="image"')) {
-          // ファイル名を抽出
-          const nameMatch = headers.match(/filename="([^"]+)"/);
-          if (nameMatch) {
-            fileName = nameMatch[1];
-          }
-          
-          // Content-Typeを抽出
-          const typeMatch = headers.match(/Content-Type: ([^\r\n]+)/);
-          if (typeMatch) {
-            fileType = typeMatch[1].trim();
-          }
-          
-          // ファイルデータを抽出（末尾の改行を削除）
-          const dataEnd = body.lastIndexOf('\r\n');
-          fileData = Buffer.from(body.substring(0, dataEnd), 'binary');
-          break;
-        }
-      }
-    }
-
-    if (!fileData) {
+    if (!file) {
       return res.status(400).json({ error: 'No file uploaded' });
     }
 
-    // ファイルサイズチェック
-    if (fileData.length > 10 * 1024 * 1024) {
-      return res.status(400).json({ error: 'File too large (max 10MB)' });
+    try {
+      // ファイルを読み込む（formidableは一時ファイルパスを返す）
+      let fileData;
+      if (file.filepath) {
+        // 一時ファイルから読み込む
+        fileData = fs.readFileSync(file.filepath);
+        // 一時ファイルを削除
+        fs.unlinkSync(file.filepath);
+      } else if (Buffer.isBuffer(file)) {
+        // 既にBufferの場合
+        fileData = file;
+      } else {
+        return res.status(400).json({ error: 'Invalid file data' });
+      }
+
+      // 画像データを保存
+      session.imageData = {
+        name: file.originalFilename || 'image',
+        type: file.mimetype || 'image/jpeg',
+        size: file.size || fileData.length,
+        data: fileData,
+      };
+      session.status = 'uploaded';
+      session.timestamp = Date.now();
+
+      // バックグラウンドでIPFSにアップロード
+      uploadToIPFS(sessionId).catch((err) => {
+        console.error('IPFS upload error:', err);
+        session.status = 'error';
+        session.error = err.message;
+      });
+
+      return res.status(200).json({
+        success: true,
+        message: 'Image uploaded successfully',
+        sessionId,
+      });
+    } catch (error) {
+      console.error('Upload error:', error);
+      return res.status(500).json({ error: error.message || 'Upload failed' });
     }
-
-    // 画像データを保存
-    session.imageData = {
-      name: fileName,
-      type: fileType,
-      size: fileData.length,
-      data: fileData
-    };
-    session.status = 'uploaded';
-    session.timestamp = Date.now();
-
-    // バックグラウンドでIPFSにアップロード
-    uploadToIPFS(sessionId).catch(err => {
-      console.error('IPFS upload error:', err);
-      session.status = 'error';
-      session.error = err.message;
-    });
-
-    return res.status(200).json({
-      success: true,
-      message: 'Image uploaded successfully',
-      sessionId
-    });
-  } catch (error) {
-    console.error('Upload error:', error);
-    return res.status(500).json({ error: error.message || 'Upload failed' });
-  }
+  });
 }
 
