@@ -1,6 +1,6 @@
 "use client"
 import type React from "react"
-import { useState, useRef, useEffect } from "react"
+import { useState, useRef } from "react"
 import { Box, Card, CardContent, Typography, Button, CardHeader, Link } from "@mui/material"
 import { styled } from "@mui/material/styles"
 import ImageIcon from "@mui/icons-material/Image"
@@ -92,14 +92,6 @@ export default function FileUploader({
       // アップロード中の状態を表示
       setError('IPFSにアップロード中...');
 
-
-      const progressCallback = (progressData: any) => {
-        if (progressData && progressData.total) {
-          const percentageDone = Math.round((progressData.uploaded / progressData.total) * 100);
-          console.log('Upload Progress:', percentageDone + '%');
-        }
-      }
-
       // ファイルをArrayBufferに変換
       const arrayBuffer = await file.arrayBuffer();
       //const uint8Array = new Uint8Array(arrayBuffer);
@@ -166,7 +158,7 @@ export default function FileUploader({
 
         let nftTxn = await connectedContract.mintIpfsNFT("sample", ipfs);
         console.log("Mining...please wait.");
-        const receipt = await nftTxn.wait();
+        //const receipt = await nftTxn.wait();
         console.log(
           `Mined, see transaction: https://sepolia.etherscan.io/tx/${nftTxn.hash}`
         );

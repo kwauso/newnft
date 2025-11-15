@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { Box, Card, CardContent, Typography, Button, CardHeader, Link, LinearProgress, CircularProgress, TextField, IconButton, Snackbar, Alert } from '@mui/material';
+import { useState, useEffect, useCallback } from 'react';
+import { Box, Card, CardContent, Typography, Button, CardHeader, Link, LinearProgress, TextField, IconButton, Snackbar, Alert } from '@mui/material';
 import { QRCodeSVG } from 'qrcode.react';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import { ethers } from 'ethers';
