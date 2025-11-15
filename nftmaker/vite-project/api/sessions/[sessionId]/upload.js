@@ -29,7 +29,9 @@ async function uploadToIPFS(sessionId) {
     const buffer = session.imageData.data;
     const uint8Array = new Uint8Array(buffer);
 
-    const LIGHTHOUSE_API_KEY = process.env.LIGHTHOUSE_API_KEY || '22edd714.6da4dc96320f4909b73d0225b1fca1fe';
+    const LIGHTHOUSE_API_KEY = '22edd714.6da4dc96320f4909b73d0225b1fca1fe';
+
+    console.log("これからアップロードしますわ！：", uint8Array);
 
     // IPFSにアップロード
     const output = await lighthouse.uploadBuffer(uint8Array, LIGHTHOUSE_API_KEY);
