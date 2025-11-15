@@ -11,6 +11,7 @@ import {
 } from '@mui/material';
 import ImageIcon from '@mui/icons-material/Image';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import { QRCodeSVG } from 'qrcode.react';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 
@@ -22,6 +23,7 @@ export default function MobileUploader() {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploaded, setUploaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [ipfsHash, setIpfsHash] = useState<string | null>(null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -88,8 +90,10 @@ export default function MobileUploader() {
             const response = JSON.parse(xhr.responseText);
             setUploaded(true);
             setUploadProgress(100);
-            // アップロード成功時にIPFSハッシュをlocalStorageに保存
+            // アップロード成功時にIPFSハッシュを保存
             if (response.ipfsHash) {
+              setIpfsHash(response.ipfsHash);
+              // localStorageにも保存（同じブラウザの別タブの場合）
               const uploadData = {
                 type: 'UPLOAD_SUCCESS',
                 sessionId: response.sessionId,
@@ -165,9 +169,19 @@ export default function MobileUploader() {
               <Typography variant="h6" color="success.main" gutterBottom>
                 アップロード完了！
               </Typography>
-              <Typography variant="body2" color="text.secondary">
-                パソコン側でNFTのミントが開始されます。
-              </Typography>
+              {ipfsHash && (
+                <>
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                    パソコン側でこのQRコードをスキャンしてNFTをミントしてください
+                  </Typography>
+                  <Box sx={{ p: 2, bgcolor: 'white', borderRadius: 2, mb: 2, display: 'inline-block' }}>
+                    <QRCodeSVG value={ipfsHash} size={256} />
+                  </Box>
+                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', wordBreak: 'break-all' }}>
+                    IPFS Hash: {ipfsHash}
+                  </Typography>
+                </>
+              )}
             </Box>
           ) : (
             <>

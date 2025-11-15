@@ -1,7 +1,9 @@
-import { useState, useEffect } from 'react';
-import { Box, Card, CardContent, Typography, Button, CardHeader, Link, LinearProgress, TextField, IconButton, Snackbar, Alert } from '@mui/material';
+import { useState, useEffect, useRef } from 'react';
+import { Box, Card, CardContent, Typography, Button, CardHeader, Link, LinearProgress, TextField, IconButton, Snackbar, Alert, Dialog, DialogTitle, DialogContent, DialogActions } from '@mui/material';
 import { QRCodeSVG } from 'qrcode.react';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
+import QrCodeScannerIcon from '@mui/icons-material/QrCodeScanner';
+import { Html5Qrcode } from 'html5-qrcode';
 import { ethers } from 'ethers';
 import Web3Mint from '../utils/Web3Mint.json';
 
@@ -27,6 +29,9 @@ export default function NftMinter() {
   const [copySuccess, setCopySuccess] = useState(false);
   const [isMinting, setIsMinting] = useState(false);
   const [ipfsHash, setIpfsHash] = useState<string | null>(null);
+  const [scanning, setScanning] = useState(false);
+  const qrCodeReaderRef = useRef<Html5Qrcode | null>(null);
+  const scannerContainerRef = useRef<HTMLDivElement | null>(null);
 
   // ウォレット接続
   const connectWallet = async () => {
@@ -117,6 +122,61 @@ export default function NftMinter() {
       clearInterval(interval);
     };
   }, [sessionId]);
+
+  // QRコードスキャンの開始
+  const startQRScan = async () => {
+    if (!scannerContainerRef.current) return;
+
+    try {
+      const html5QrCode = new Html5Qrcode('qr-reader');
+      qrCodeReaderRef.current = html5QrCode;
+
+      await html5QrCode.start(
+        { facingMode: 'environment' },
+        {
+          fps: 10,
+          qrbox: { width: 250, height: 250 },
+        },
+        (decodedText) => {
+          // QRコードを検出
+          setIpfsHash(decodedText);
+          setScanning(false);
+          html5QrCode.stop().catch(() => {});
+          setError('IPFSハッシュを取得しました。ミントボタンを押してください。');
+        },
+        () => {
+          // エラーは無視（継続的にスキャンするため）
+        }
+      );
+      setScanning(true);
+    } catch (err) {
+      console.error('QR scan error:', err);
+      setError('QRコードスキャンの開始に失敗しました: ' + (err as Error).message);
+      setScanning(false);
+    }
+  };
+
+  // QRコードスキャンの停止
+  const stopQRScan = async () => {
+    if (qrCodeReaderRef.current) {
+      try {
+        await qrCodeReaderRef.current.stop();
+      } catch (err) {
+        console.error('Stop scan error:', err);
+      }
+      qrCodeReaderRef.current = null;
+    }
+    setScanning(false);
+  };
+
+  // クリーンアップ
+  useEffect(() => {
+    return () => {
+      if (qrCodeReaderRef.current) {
+        qrCodeReaderRef.current.stop().catch(() => {});
+      }
+    };
+  }, []);
 
   // ミントボタンのハンドラー
   const handleMint = async () => {
@@ -351,9 +411,40 @@ export default function NftMinter() {
                     </Box>
                   )}
 
-                  {/* ミントボタン */}
+                  {/* QRコードスキャンボタン */}
+                  <Box sx={{ mb: 2, textAlign: 'center' }}>
+                    <Button
+                      variant="outlined"
+                      color="primary"
+                      startIcon={<QrCodeScannerIcon />}
+                      onClick={scanning ? stopQRScan : startQRScan}
+                      sx={{ mb: 2 }}
+                      fullWidth
+                    >
+                      {scanning ? 'スキャンを停止' : 'QRコードをスキャン'}
+                    </Button>
+                  </Box>
+
+                  {/* QRコードスキャンダイアログ */}
+                  <Dialog open={scanning} onClose={stopQRScan} maxWidth="sm" fullWidth>
+                    <DialogTitle>QRコードをスキャン</DialogTitle>
+                    <DialogContent>
+                      <Box sx={{ width: '100%', minHeight: '300px' }} id="qr-reader" ref={scannerContainerRef} />
+                      <Typography variant="body2" color="text.secondary" sx={{ mt: 2, textAlign: 'center' }}>
+                        モバイル側で表示されたQRコードをカメラに向けてください
+                      </Typography>
+                    </DialogContent>
+                    <DialogActions>
+                      <Button onClick={stopQRScan}>閉じる</Button>
+                    </DialogActions>
+                  </Dialog>
+
+                  {/* ミントボタン（IPFSハッシュがある場合のみ表示） */}
                   {ipfsHash && (
                     <Box sx={{ mb: 2, textAlign: 'center' }}>
+                      <Typography variant="body2" color="text.secondary" sx={{ mb: 1, wordBreak: 'break-all' }}>
+                        IPFS Hash: {ipfsHash}
+                      </Typography>
                       <Button
                         variant="contained"
                         color="primary"
