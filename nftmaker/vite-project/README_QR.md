@@ -107,3 +107,25 @@ LIGHTHOUSE_API_KEY=your_api_key_here
 
 環境変数が設定されていない場合、デフォルト値が使用されます（開発用）。
 
+## Vercelへのデプロイ
+
+このプロジェクトをVercelにデプロイする方法については、[VERCEL_DEPLOY.md](./VERCEL_DEPLOY.md)を参照してください。
+
+### クイックスタート
+
+1. **Vercel CLIをインストール**
+   ```bash
+   npm i -g vercel
+   ```
+
+2. **デプロイ**
+   ```bash
+   cd nftmaker/vite-project
+   vercel
+   ```
+
+3. **環境変数を設定**
+   - Vercelダッシュボードで `LIGHTHOUSE_API_KEY` を設定
+
+詳細は [VERCEL_DEPLOY.md](./VERCEL_DEPLOY.md) を参照してください。
+
