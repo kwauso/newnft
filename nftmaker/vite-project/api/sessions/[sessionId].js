@@ -4,6 +4,12 @@ if (!global.sessions) {
 }
 
 export default async function handler(req, res) {
+  // デバッグ: リクエスト情報をログに出力
+  console.log('=== Session Status Handler Called ===');
+  console.log('req.method:', req.method);
+  console.log('req.url:', req.url);
+  console.log('req.query:', req.query);
+
   // CORS設定
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, DELETE, OPTIONS');
@@ -13,7 +19,19 @@ export default async function handler(req, res) {
     return res.status(200).end();
   }
 
-  const { sessionId } = req.query;
+  // セッションIDを取得（Vercelの動的ルートから）
+  const sessionId = req.query?.sessionId || 
+                    (req.url && req.url.match(/\/sessions\/([^\/]+)/)?.[1]);
+  
+  console.log('SessionId from query:', req.query?.sessionId);
+  console.log('SessionId from URL:', req.url && req.url.match(/\/sessions\/([^\/]+)/)?.[1]);
+  console.log('Final sessionId:', sessionId);
+  
+  if (!sessionId) {
+    console.error('SessionId not found!');
+    return res.status(400).json({ error: 'Session ID is required', query: req.query, url: req.url });
+  }
+
   const session = global.sessions.get(sessionId);
 
   if (!session) {
