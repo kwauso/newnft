@@ -31,8 +31,6 @@ async function uploadToIPFS(sessionId) {
 
     const LIGHTHOUSE_API_KEY = '22edd714.6da4dc96320f4909b73d0225b1fca1fe';
 
-    console.log("これからアップロードしますわ！：", uint8Array);
-
     // IPFSにアップロード
     const output = await lighthouse.uploadBuffer(uint8Array, LIGHTHOUSE_API_KEY);
     const hash = output.data.Hash;
@@ -64,9 +62,9 @@ export default async function handler(req, res) {
   }
 
   // POST 以外は全部 405
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: `Method ${req.method} not allowed` });
-  }
+  //if (req.method !== 'POST') {
+  //  return res.status(405).json({ error: `Method ${req.method} not allowed` });
+  //}
 
   // セッションIDを取得
   const { sessionId } = req.query;
