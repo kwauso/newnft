@@ -91,3 +91,19 @@ npm run dev
 - サーバーはポート3001で起動します
 - フロントエンドはポート5173で起動します（Viteのデフォルト）
 
+## 環境変数（オプション）
+
+IPFSアップロードのAPIキーを環境変数で設定できます：
+
+```bash
+export LIGHTHOUSE_API_KEY=your_api_key_here
+```
+
+または、`.env`ファイルを作成：
+
+```
+LIGHTHOUSE_API_KEY=your_api_key_here
+```
+
+環境変数が設定されていない場合、デフォルト値が使用されます（開発用）。
+

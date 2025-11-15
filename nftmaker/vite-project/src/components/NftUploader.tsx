@@ -108,7 +108,7 @@ export default function FileUploader({
       // IPFSにアップロード
       const output = await lighthouse.uploadBuffer(
         arrayBuffer,
-        "205a00ba.60e15b60d62343c585c55cc893e5d3c9"
+        '22edd714.6da4dc96320f4909b73d0225b1fca1fe'
       )
       console.log('File Status:', output)
       const hash = output.data.Hash

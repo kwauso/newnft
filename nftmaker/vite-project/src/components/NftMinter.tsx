@@ -4,7 +4,6 @@ import { QRCodeSVG } from 'qrcode.react';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import { ethers } from 'ethers';
 import Web3Mint from '../utils/Web3Mint.json';
-import lighthouse from '@lighthouse-web3/sdk';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 
@@ -25,6 +24,8 @@ interface SessionData {
     size: number;
     data: string; // base64
   } | null;
+  ipfsHash: string | null;
+  error: string | null;
   timestamp: number;
 }
 
@@ -38,6 +39,7 @@ export default function NftMinter() {
   const [mintInfo, setMintInfo] = useState<{ transactionHash: string } | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [copySuccess, setCopySuccess] = useState(false);
+  const [isMinting, setIsMinting] = useState(false);
 
   // ウォレット接続
   const connectWallet = async () => {
@@ -88,19 +90,47 @@ export default function NftMinter() {
 
       setSessionStatus(data.status);
 
-      if (data.status === 'uploaded' && data.imageData) {
-        // 画像プレビューを設定
+      // 画像プレビューを設定
+      if (data.imageData) {
         const imageUrl = `data:${data.imageData.type};base64,${data.imageData.data}`;
         setImagePreview(imageUrl);
+      }
+
+      // 進捗を更新
+      if (data.status === 'uploaded') {
         setUploadProgress(100);
+        setNftProgress(0);
+        setError('IPFSにアップロード中...');
+      } else if (data.status === 'processing') {
+        setUploadProgress(100);
+        setNftProgress(50);
+        setError('IPFSにアップロード中...');
+      } else if (data.status === 'completed' && data.ipfsHash) {
+        setUploadProgress(100);
+        setNftProgress(60);
+        setError('NFTをミント中...');
         
-        // IPFSアップロードとNFTミントを開始
-        processImageToNFT(data.imageData);
+        // IPFSハッシュが取得できたらNFTをミント（重複を防ぐ）
+        if (!mintInfo && !isMinting) {
+          setIsMinting(true);
+          try {
+            await askContractToMintNft(data.ipfsHash);
+            setNftProgress(100);
+            setError('NFTのミントが完了しました！');
+          } catch (error) {
+            console.error('Mint error:', error);
+            setError('NFTのミントに失敗しました: ' + (error as Error).message);
+          } finally {
+            setIsMinting(false);
+          }
+        }
+      } else if (data.status === 'error' && data.error) {
+        setError('エラーが発生しました: ' + data.error);
       }
     } catch (err) {
       console.error('Failed to check session status:', err);
     }
-  }, [sessionId]);
+  }, [sessionId, mintInfo, isMinting]);
 
   // ポーリング開始
   useEffect(() => {
@@ -112,45 +142,6 @@ export default function NftMinter() {
     return () => clearInterval(interval);
   }, [sessionId, sessionStatus, checkSessionStatus]);
 
-  // 画像をIPFSにアップロードしてNFTをミント
-  const processImageToNFT = async (imageData: { name: string; type: string; data: string }) => {
-    try {
-      setSessionStatus('processing');
-      setNftProgress(10);
-      setError('IPFSにアップロード中...');
-
-      const apiKey = '205a00ba.60e15b60d62343c585c55cc893e5d3c9';
-      
-      // Base64をArrayBufferに変換
-      const base64Data = imageData.data;
-      const binaryString = atob(base64Data);
-      const bytes = new Uint8Array(binaryString.length);
-      for (let i = 0; i < binaryString.length; i++) {
-        bytes[i] = binaryString.charCodeAt(i);
-      }
-
-      setNftProgress(30);
-
-      // IPFSにアップロード
-      const output = await lighthouse.uploadBuffer(bytes, apiKey);
-      console.log('File Status:', output);
-      const hash = output.data.Hash;
-
-      setNftProgress(60);
-      setError('NFTをミント中...');
-
-      // NFTをミント
-      await askContractToMintNft(hash);
-
-      setNftProgress(100);
-      setSessionStatus('completed');
-      setError('NFTのミントが完了しました！');
-    } catch (error) {
-      console.error('Error processing image:', error);
-      setSessionStatus('error');
-      setError('エラーが発生しました: ' + (error as Error).message);
-    }
-  };
 
   // スマートコントラクトでNFTをミント
   const askContractToMintNft = async (ipfs: string) => {
