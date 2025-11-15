@@ -488,10 +488,27 @@ export default function NftMinter() {
                   {/* 進捗バー */}
                   {uploadProgress > 0 && (
                     <Box sx={{ mb: 2 }}>
-                      <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                        アップロード進捗: {uploadProgress}%
-                      </Typography>
-                      <LinearProgress variant="determinate" value={uploadProgress} />
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                        <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 500 }}>
+                          アップロード進捗
+                        </Typography>
+                        <Typography variant="body2" color="primary.main" sx={{ fontWeight: 600 }}>
+                          {uploadProgress}%
+                        </Typography>
+                      </Box>
+                      <LinearProgress 
+                        variant="determinate" 
+                        value={uploadProgress}
+                        sx={{
+                          height: 8,
+                          borderRadius: 4,
+                          backgroundColor: 'grey.200',
+                          '& .MuiLinearProgress-bar': {
+                            borderRadius: 4,
+                            background: 'linear-gradient(90deg, #1976d2 0%, #42a5f5 100%)',
+                          },
+                        }}
+                      />
                     </Box>
                   )}
 
@@ -551,10 +568,27 @@ export default function NftMinter() {
                       </Button>
                       {nftProgress > 0 && (
                         <Box sx={{ mt: 2 }}>
-                          <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                            NFTミント進捗: {nftProgress}%
-                          </Typography>
-                          <LinearProgress variant="determinate" value={nftProgress} />
+                          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                            <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 500 }}>
+                              NFTミント進捗
+                            </Typography>
+                            <Typography variant="body2" color="primary.main" sx={{ fontWeight: 600 }}>
+                              {nftProgress}%
+                            </Typography>
+                          </Box>
+                          <LinearProgress 
+                            variant="determinate" 
+                            value={nftProgress}
+                            sx={{
+                              height: 8,
+                              borderRadius: 4,
+                              backgroundColor: 'grey.200',
+                              '& .MuiLinearProgress-bar': {
+                                borderRadius: 4,
+                                background: 'linear-gradient(90deg, #1976d2 0%, #42a5f5 100%)',
+                              },
+                            }}
+                          />
                         </Box>
                       )}
                     </Box>
@@ -573,8 +607,17 @@ export default function NftMinter() {
 
                   {/* ミント完了情報 */}
                   {mintInfo && (
-                    <Box sx={{ mt: 2, p: 2, bgcolor: 'success.light', borderRadius: 1 }}>
-                      <Typography variant="subtitle2" color="success.dark" gutterBottom>
+                    <Box 
+                      sx={{ 
+                        mt: 2, 
+                        p: 2, 
+                        border: '1px solid',
+                        borderColor: 'divider',
+                        borderRadius: 2,
+                        bgcolor: 'background.paper',
+                      }}
+                    >
+                      <Typography variant="subtitle2" color="text.primary" gutterBottom sx={{ fontWeight: 600 }}>
                         NFTのミントが完了しました！
                       </Typography>
                       <Typography variant="body2" color="text.secondary">
