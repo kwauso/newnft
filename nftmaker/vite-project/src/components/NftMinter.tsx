@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Box, Card, CardContent, Typography, Button, CardHeader, Link, LinearProgress, TextField, IconButton, Snackbar, Alert, Dialog, DialogTitle, DialogContent, DialogActions } from '@mui/material';
+import { Box, Card, CardContent, Typography, Button, CardHeader, LinearProgress, TextField, IconButton, Snackbar, Alert, Dialog, DialogTitle, DialogContent, DialogActions } from '@mui/material';
 import { QRCodeSVG } from 'qrcode.react';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import QrCodeScannerIcon from '@mui/icons-material/QrCodeScanner';
@@ -615,21 +615,25 @@ export default function NftMinter() {
                         borderColor: 'divider',
                         borderRadius: 2,
                         bgcolor: 'background.paper',
+                        textAlign: 'center',
                       }}
                     >
                       <Typography variant="subtitle2" color="text.primary" gutterBottom sx={{ fontWeight: 600 }}>
                         NFTのミントが完了しました！
                       </Typography>
-                      <Typography variant="body2" color="text.secondary">
-                        トランザクションハッシュ:
-                        <Link
-                          href={`https://sepolia.etherscan.io/tx/${mintInfo.transactionHash}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          sx={{ ml: 1 }}
-                        >
-                          Etherscanで確認
-                        </Link>
+                      <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                        トランザクションを確認するには、以下のQRコードをスキャンしてください
+                      </Typography>
+                      <Box sx={{ display: 'flex', justifyContent: 'center', mb: 2 }}>
+                        <Box sx={{ p: 2, bgcolor: 'white', borderRadius: 2, border: '1px solid', borderColor: 'grey.300' }}>
+                          <QRCodeSVG 
+                            value={`https://sepolia.etherscan.io/tx/${mintInfo.transactionHash}`} 
+                            size={200} 
+                          />
+                        </Box>
+                      </Box>
+                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', wordBreak: 'break-all' }}>
+                        {mintInfo.transactionHash}
                       </Typography>
                     </Box>
                   )}
